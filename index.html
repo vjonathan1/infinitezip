@@ -13,6 +13,9 @@
             --tile: #334155;
             --tile-active: #0891b2;
             --num: #a7f3d0;
+            --cell-size: 60px;
+            --gap: 6px;
+            --wall-thickness: 6px;
         }
 
         body {
@@ -24,70 +27,98 @@
 
         header {
             width: 100%; padding: 1rem; text-align: center;
-            background: var(--panel); box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+            background: var(--panel); box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            z-index: 50;
         }
 
-        h1 { margin: 0; font-size: 1.5rem; color: var(--accent); letter-spacing: 1px; }
+        h1 { margin: 0; font-size: 1.8rem; color: var(--accent); letter-spacing: 2px; font-weight: 900; }
         
-        .stats { display: flex; justify-content: center; gap: 2rem; margin-top: 0.5rem; font-family: monospace; }
+        .stats { display: flex; justify-content: center; gap: 2rem; margin-top: 0.5rem; font-family: 'JetBrains Mono', monospace; color: var(--num); }
 
         #game-area {
             flex: 1; display: flex; align-items: center; justify-content: center;
-            width: 100%; position: relative; padding: 10px; box-sizing: border-box;
+            width: 100%; position: relative;
         }
 
+        /* The Board */
         #grid-container {
-            position: relative; background: var(--panel);
-            padding: 8px; border-radius: 12px;
-            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+            position: relative; 
+            background: #00000033;
+            padding: var(--gap); 
+            border-radius: 12px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            user-select: none;
         }
 
-        #grid { display: grid; gap: 4px; position: relative; z-index: 2; }
+        #grid { 
+            display: grid; 
+            gap: var(--gap); 
+            position: relative; 
+            z-index: 10; 
+        }
 
         .cell {
-            width: 50px; height: 50px; background: var(--tile);
-            border-radius: 6px; display: flex; align-items: center;
-            justify-content: center; font-weight: 800; font-size: 1.2rem;
-            color: var(--num); transition: background 0.15s;
-            user-select: none; pointer-events: all;
+            width: var(--cell-size); height: var(--cell-size); 
+            background: var(--tile);
+            border-radius: 8px; display: flex; align-items: center;
+            justify-content: center; font-weight: 800; font-size: 1.4rem;
+            color: var(--num); transition: background 0.2s, transform 0.1s;
         }
 
         .cell.filled { background: var(--tile-active); }
+        .cell.target { border: 2px solid var(--accent); box-shadow: 0 0 10px var(--accent); }
 
-        /* SVG path for the stroke */
+        /* Path Line */
         #svg-canvas {
-            position: absolute; top: 8px; left: 8px;
-            width: calc(100% - 16px); height: calc(100% - 16px);
-            pointer-events: none; z-index: 3;
+            position: absolute; 
+            top: var(--gap); left: var(--gap);
+            width: calc(100% - (var(--gap) * 2)); 
+            height: calc(100% - (var(--gap) * 2));
+            pointer-events: none; z-index: 20;
+            overflow: visible;
         }
 
         #stroke-path {
-            fill: none; stroke: var(--accent); stroke-width: 12;
+            fill: none; stroke: var(--accent); stroke-width: 14;
             stroke-linecap: round; stroke-linejoin: round;
+            filter: drop-shadow(0 0 5px var(--accent));
         }
 
-        /* Wall Rendering */
+        /* Walls */
+        #walls-layer {
+            position: absolute;
+            top: var(--gap); left: var(--gap);
+            width: calc(100% - (var(--gap) * 2));
+            height: calc(100% - (var(--gap) * 2));
+            pointer-events: none;
+            z-index: 30;
+        }
+
         .wall {
             position: absolute; background: var(--wall);
-            z-index: 4; border-radius: 10px;
-            box-shadow: 0 0 10px var(--wall);
+            border-radius: 10px;
+            box-shadow: 0 0 8px var(--wall);
+            transform: translate(-50%, -50%); /* Crucial for centering on gaps */
         }
 
         footer {
             width: 100%; padding: 1.5rem; background: var(--panel);
             display: flex; justify-content: center; gap: 1rem;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.2);
         }
 
         button {
-            background: var(--accent); border: none; padding: 0.8rem 1.5rem;
-            border-radius: 8px; font-weight: bold; cursor: pointer;
-            color: var(--bg); text-transform: uppercase;
+            background: var(--accent); border: none; padding: 0.8rem 1.8rem;
+            border-radius: 50px; font-weight: bold; cursor: pointer;
+            color: var(--bg); text-transform: uppercase; transition: 0.2s;
         }
 
+        button:active { transform: scale(0.95); }
+
         #win-screen {
-            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.9);
+            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
             display: none; flex-direction: column; align-items: center;
-            justify-content: center; z-index: 100;
+            justify-content: center; z-index: 100; text-align: center;
         }
     </style>
 </head>
@@ -97,7 +128,7 @@
     <h1>INFINITE ZIP</h1>
     <div class="stats">
         <div id="timer">00:00</div>
-        <div id="target">Target: 1</div>
+        <div id="target">Next: 1</div>
     </div>
 </header>
 
@@ -109,14 +140,15 @@
     </div>
 
     <div id="win-screen">
-        <h2 style="font-size: 3rem; color: var(--accent);">CLEARED!</h2>
-        <p id="final-time"></p>
+        <h2 style="font-size: 3.5rem; color: var(--accent); margin-bottom: 0;">ZIP!</h2>
+        <p style="font-size: 1.2rem; color: var(--num);">Puzzle Mastered</p>
+        <p id="final-time" style="margin-bottom: 2rem;"></p>
         <button onclick="nextLevel()">Next Puzzle</button>
     </div>
 </div>
 
 <footer>
-    <button onclick="resetPath()">Reset</button>
+    <button onclick="resetPath()">Reset Path</button>
     <button style="background: #475569; color: white;" onclick="nextLevel()">Skip</button>
 </footer>
 
@@ -126,19 +158,18 @@
         {
             size: 4,
             nums: { "0,0": 1, "0,3": 2, "3,0": 3 },
-            // Walls defined as [row, col, direction] 
-            // direction 0 = horizontal (bottom of cell), 1 = vertical (right of cell)
-            walls: [[0, 0, 1], [1, 1, 0], [2, 1, 1], [0, 2, 1]] 
+            // walls: [row, col, type] type 0 = bottom wall, 1 = right wall
+            walls: [[0, 0, 1], [0, 1, 1], [1, 2, 0], [2, 1, 1], [2, 0, 0]] 
         },
         {
             size: 5,
-            nums: { "4,0": 1, "0,0": 2, "0,4": 3, "4,4": 4 },
-            walls: [[1,0,0], [3,0,0], [1,2,0], [3,2,0], [1,4,0], [3,4,0]]
+            nums: { "0,0": 1, "2,2": 2, "4,4": 3 },
+            walls: [[0,1,1], [1,1,0], [3,3,0], [3,4,1], [4,1,1]]
         },
         {
-            size: 4,
-            nums: { "0,0": 1, "1,1": 2, "3,3": 3 },
-            walls: [[0,0,0], [1,1,1], [2,2,0]]
+            size: 6,
+            nums: { "0,0": 1, "5,5": 2 },
+            walls: [[0,0,0], [1,1,0], [2,2,0], [3,3,0], [4,4,0]]
         }
     ];
 
@@ -149,20 +180,26 @@
     let timerInterval = null;
 
     const grid = document.getElementById('grid');
-    const svg = document.getElementById('svg-canvas');
     const stroke = document.getElementById('stroke-path');
     const wallLayer = document.getElementById('walls-layer');
+    const root = document.querySelector(':root');
 
     function initGame() {
         const p = puzzles[currentLvl];
-        grid.style.gridTemplateColumns = `repeat(${p.size}, 50px)`;
+        
+        // Dynamic Mobile Sizing
+        const availableWidth = Math.min(window.innerWidth - 40, 500);
+        const calcCellSize = Math.floor((availableWidth - (p.size * 6)) / p.size);
+        root.style.setProperty('--cell-size', `${calcCellSize}px`);
+        root.style.setProperty('--gap', `6px`);
+
+        grid.style.gridTemplateColumns = `repeat(${p.size}, var(--cell-size))`;
         grid.innerHTML = '';
         wallLayer.innerHTML = '';
         path = [];
         stroke.setAttribute('points', '');
         document.getElementById('win-screen').style.display = 'none';
         
-        // Create Cells
         for(let r=0; r<p.size; r++) {
             for(let c=0; c<p.size; c++) {
                 const cell = document.createElement('div');
@@ -175,29 +212,34 @@
             }
         }
 
-        // Create Walls
-        const cellSize = 50;
-        const gap = 4;
+        renderWalls(p);
+        resetTimer();
+        updateTarget();
+    }
+
+    function renderWalls(p) {
+        const cellSize = parseInt(getComputedStyle(root).getPropertyValue('--cell-size'));
+        const gap = parseInt(getComputedStyle(root).getPropertyValue('--gap'));
+        const step = cellSize + gap;
+
         p.walls.forEach(w => {
             const [r, c, type] = w;
             const wall = document.createElement('div');
             wall.className = 'wall';
-            if(type === 0) { // Horizontal (below cell)
-                wall.style.width = '50px';
-                wall.style.height = '6px';
-                wall.style.top = `${(r + 1) * (cellSize + gap) - gap/2 - 3}px`;
-                wall.style.left = `${c * (cellSize + gap)}px`;
-            } else { // Vertical (right of cell)
-                wall.style.height = '50px';
-                wall.style.width = '6px';
-                wall.style.left = `${(c + 1) * (cellSize + gap) - gap/2 - 3}px`;
-                wall.style.top = `${r * (cellSize + gap)}px`;
+            
+            if(type === 0) { // Horizontal Wall (Bottom of cell)
+                wall.style.width = `${cellSize + gap}px`;
+                wall.style.height = `var(--wall-thickness)`;
+                wall.style.left = `${c * step + cellSize/2}px`;
+                wall.style.top = `${(r + 1) * step - gap/2}px`;
+            } else { // Vertical Wall (Right of cell)
+                wall.style.height = `${cellSize + gap}px`;
+                wall.style.width = `var(--wall-thickness)`;
+                wall.style.top = `${r * step + cellSize/2}px`;
+                wall.style.left = `${(c + 1) * step - gap/2}px`;
             }
             wallLayer.appendChild(wall);
         });
-
-        resetTimer();
-        updateTarget();
     }
 
     function handleMove(e) {
@@ -223,7 +265,7 @@
         const last = path[path.length - 1];
         if(last.r === r && last.c === c) return;
 
-        // Backtracking
+        // Fluid Backtracking Logic
         if(path.length > 1) {
             const prev = path[path.length - 2];
             if(prev.r === r && prev.c === c) {
@@ -235,13 +277,13 @@
             }
         }
 
-        // Adjacency & Wall Check
+        // Logic Constraints
         const dr = r - last.r;
         const dc = c - last.c;
-        if(Math.abs(dr) + Math.abs(dc) !== 1) return; // Must be 1 step
-        if(path.find(p => p.r === r && p.c === c)) return; // No repeats
+        if(Math.abs(dr) + Math.abs(dc) !== 1) return; 
+        if(path.find(p => p.r === r && p.c === c)) return; 
 
-        // Wall Logic Check
+        // Wall Collision
         const p = puzzles[currentLvl];
         let blocked = false;
         p.walls.forEach(w => {
@@ -254,14 +296,14 @@
         });
         if(blocked) return;
 
-        // Sequence Check
+        // Winning Stroke Constraint: Max number MUST be the very last tile.
         const cellVal = p.nums[`${r},${c}`];
         const nextReq = getNextRequiredNum();
         const maxVal = Math.max(...Object.values(p.nums));
 
         if(cellVal) {
             if(cellVal !== nextReq) return;
-            // If it's the final number, it MUST be the last empty tile
+            // Check if this is the highest number, if so, are there empty tiles left?
             if(cellVal === maxVal && path.length < (p.size * p.size) - 1) return;
         }
 
@@ -287,9 +329,14 @@
     }
 
     function renderStroke() {
+        const cellSize = parseInt(getComputedStyle(root).getPropertyValue('--cell-size'));
+        const gap = parseInt(getComputedStyle(root).getPropertyValue('--gap'));
+        const step = cellSize + gap;
+        const center = cellSize / 2;
+
         const points = path.map(p => {
-            const x = p.c * 54 + 25;
-            const y = p.r * 54 + 25;
+            const x = p.c * step + center;
+            const y = p.r * step + center;
             return `${x},${y}`;
         }).join(' ');
         stroke.setAttribute('points', points);
@@ -303,17 +350,16 @@
 
         if(path.length === p.size * p.size && lastVal === maxVal) {
             clearInterval(timerInterval);
-            document.getElementById('final-time').textContent = `Time: ${document.getElementById('timer').textContent}`;
+            document.getElementById('final-time').textContent = `Finished in ${document.getElementById('timer').textContent}`;
             document.getElementById('win-screen').style.display = 'flex';
         }
     }
 
-    // --- UI HELPERS ---
     function updateTarget() {
         const next = getNextRequiredNum();
         const p = puzzles[currentLvl];
         const max = Math.max(...Object.values(p.nums));
-        document.getElementById('target').textContent = next > max ? "Fill Board" : `Next: ${next}`;
+        document.getElementById('target').textContent = next > max ? "Fill All" : `Next: ${next}`;
     }
 
     function startTimer() {
@@ -334,12 +380,7 @@
     }
 
     function resetPath() {
-        const p = puzzles[currentLvl];
-        path = [];
-        document.querySelectorAll('.cell').forEach(c => c.classList.remove('filled'));
-        stroke.setAttribute('points', '');
-        resetTimer();
-        updateTarget();
+        initGame();
     }
 
     function nextLevel() {
@@ -347,14 +388,21 @@
         initGame();
     }
 
-    // Listeners
-    grid.addEventListener('mousedown', () => isDragging = true);
+    grid.addEventListener('mousedown', (e) => { isDragging = true; handleMove(e); });
     window.addEventListener('mouseup', () => isDragging = false);
-    grid.addEventListener('mousemove', handleMove);
-    grid.addEventListener('touchstart', (e) => { isDragging = true; handleMove(e); }, {passive:false});
-    grid.addEventListener('touchmove', handleMove, {passive:false});
+    window.addEventListener('mousemove', handleMove);
+    
+    grid.addEventListener('touchstart', (e) => { 
+        isDragging = true; 
+        handleMove(e); 
+    }, {passive:false});
+    window.addEventListener('touchmove', (e) => {
+        if(isDragging) e.preventDefault();
+        handleMove(e);
+    }, {passive:false});
     window.addEventListener('touchend', () => isDragging = false);
 
+    window.addEventListener('resize', initGame);
     initGame();
 </script>
 </body>

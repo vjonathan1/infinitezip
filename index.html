@@ -5,49 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Infinite Zip</title>
     <style>
+        /* --- CORE STYLING (Orange & White Theme) --- */
         :root {
-            --bg: #0f172a;
-            --panel: #1e293b;
-            --accent: #22d3ee;
-            --wall: #f43f5e;
-            --tile: #334155;
-            --tile-active: #0891b2;
-            --num: #a7f3d0;
+            --bg: #ffffff;             /* Main background */
+            --header-bg: #fffcf9;      /* Subtle off-white for panels */
+            --panel: #fffcf9;
+            --text-main: #2a2a2a;      /* Dark dark gray for text */
+            
+            /* The Orange Family */
+            --accent: #f97316;         /* Primary bright orange for path/buttons */
+            --accent-hover: #ea580c;
+            --tile-active: #ffedd5;    /* Very light orange for filled cells */
+            --wall: #c2410c;           /* Deep red-orange for walls */
+            
+            /* Grays for structure */
+            --tile: #f1f5f9;           /* Unfilled cells */
+            --tile-num: #475569;       /* Color of numbers in cells */
+            --ui-shadow: rgba(249, 115, 22, 0.1); /* Subtle orange shadow */
+
+            /* Dimensions & Fluids */
             --cell-size: 60px;
             --gap: 6px;
+            --border-radius: 12px;     /* Core rounding */
             --wall-thickness: 6px;
         }
 
         body {
-            margin: 0; background: var(--bg); color: white;
-            font-family: 'Inter', system-ui, sans-serif;
+            margin: 0; background: var(--bg); color: var(--text-main);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             display: flex; flex-direction: column; height: 100vh;
             overflow: hidden; touch-action: none; align-items: center;
+            -webkit-font-smoothing: antialiased;
         }
 
         header {
-            width: 100%; padding: 1rem; text-align: center;
-            background: var(--panel); box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            width: 100%; padding: 1rem 0; text-align: center;
+            background: var(--header-bg); 
+            border-bottom: 2px solid #f9731615;
             z-index: 50;
         }
 
-        h1 { margin: 0; font-size: 1.8rem; color: var(--accent); letter-spacing: 2px; font-weight: 900; }
+        h1 { margin: 0; font-size: 1.8rem; color: var(--accent); letter-spacing: 1px; font-weight: 800; }
         
-        .stats { display: flex; justify-content: center; gap: 2rem; margin-top: 0.5rem; font-family: 'JetBrains Mono', monospace; color: var(--num); }
+        .stats { display: flex; justify-content: center; gap: 2rem; margin-top: 0.5rem; font-family: monospace; font-size: 1rem; color: #64748b; }
 
         #game-area {
             flex: 1; display: flex; align-items: center; justify-content: center;
             width: 100%; position: relative;
         }
 
-        /* The Board */
+        /* --- THE BOARD (Rounded & Fluid) --- */
         #grid-container {
             position: relative; 
-            background: #00000033;
             padding: var(--gap); 
-            border-radius: 12px;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+            border-radius: calc(var(--border-radius) + 6px); /* Outer container rounding */
             user-select: none;
+            box-shadow: 0 10px 25px var(--ui-shadow);
+            border: 2px solid #f1f5f9;
         }
 
         #grid { 
@@ -60,15 +74,18 @@
         .cell {
             width: var(--cell-size); height: var(--cell-size); 
             background: var(--tile);
-            border-radius: 8px; display: flex; align-items: center;
-            justify-content: center; font-weight: 800; font-size: 1.4rem;
-            color: var(--num); transition: background 0.2s, transform 0.1s;
+            border-radius: var(--border-radius); /* Fully rounded cells */
+            display: flex; align-items: center;
+            justify-content: center; font-weight: 800; font-size: 1.6rem;
+            color: var(--tile-num); transition: background 0.15s ease-out;
         }
 
-        .cell.filled { background: var(--tile-active); }
-        .cell.target { border: 2px solid var(--accent); box-shadow: 0 0 10px var(--accent); }
+        .cell.filled { background: var(--tile-active); color: var(--accent); }
+        
+        /* Highlight cell containing number 1 to show start */
+        .cell[data-val="1"] { border: 2px solid var(--accent); }
 
-        /* Path Line */
+        /* --- THE STROKE (Rounded SVG) --- */
         #svg-canvas {
             position: absolute; 
             top: var(--gap); left: var(--gap);
@@ -79,12 +96,13 @@
         }
 
         #stroke-path {
-            fill: none; stroke: var(--accent); stroke-width: 14;
-            stroke-linecap: round; stroke-linejoin: round;
-            filter: drop-shadow(0 0 5px var(--accent));
+            fill: none; stroke: var(--accent); 
+            stroke-width: 14;              /* Thick path */
+            stroke-linecap: round;         /* Crucial for rounded ends */
+            stroke-linejoin: round;        /* Crucial for rounded turns */
         }
 
-        /* Walls */
+        /* --- THE WALLS (Rounded ends) --- */
         #walls-layer {
             position: absolute;
             top: var(--gap); left: var(--gap);
@@ -96,29 +114,35 @@
 
         .wall {
             position: absolute; background: var(--wall);
-            border-radius: 10px;
-            box-shadow: 0 0 8px var(--wall);
-            transform: translate(-50%, -50%); /* Crucial for centering on gaps */
+            border-radius: 10px;           /* Fully rounded wall segments */
+            transform: translate(-50%, -50%); 
         }
 
+        /* --- UI ELEMENTS --- */
         footer {
-            width: 100%; padding: 1.5rem; background: var(--panel);
+            width: 100%; padding: 1.5rem 0; background: var(--header-bg);
             display: flex; justify-content: center; gap: 1rem;
-            box-shadow: 0 -4px 10px rgba(0,0,0,0.2);
+            border-top: 2px solid #f9731615;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.02);
         }
 
         button {
             background: var(--accent); border: none; padding: 0.8rem 1.8rem;
-            border-radius: 50px; font-weight: bold; cursor: pointer;
-            color: var(--bg); text-transform: uppercase; transition: 0.2s;
+            border-radius: 50px;           /* Highly rounded buttons */
+            font-weight: 700; cursor: pointer;
+            color: white; text-transform: uppercase; transition: background 0.2s;
+            font-size: 0.9rem; letter-spacing: 0.5px;
+            box-shadow: 0 4px 6px var(--ui-shadow);
         }
 
-        button:active { transform: scale(0.95); }
+        button:hover { background: var(--accent-hover); }
+        button:active { transform: scale(0.97); }
 
         #win-screen {
-            position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95);
+            position: absolute; inset: 0; background: rgba(255, 255, 255, 0.96);
             display: none; flex-direction: column; align-items: center;
             justify-content: center; z-index: 100; text-align: center;
+            backdrop-filter: blur(5px);
         }
     </style>
 </head>
@@ -140,25 +164,25 @@
     </div>
 
     <div id="win-screen">
-        <h2 style="font-size: 3.5rem; color: var(--accent); margin-bottom: 0;">ZIP!</h2>
-        <p style="font-size: 1.2rem; color: var(--num);">Puzzle Mastered</p>
-        <p id="final-time" style="margin-bottom: 2rem;"></p>
-        <button onclick="nextLevel()">Next Puzzle</button>
+        <h2 style="font-size: 3.5rem; color: var(--accent); margin: 0; font-weight: 900;">ZIP!</h2>
+        <p style="font-size: 1.2rem; color: #64748b; margin-top: 0;">Board Mastered</p>
+        <p id="final-time" style="margin-bottom: 2rem; font-weight: bold; font-size: 1.1rem;"></p>
+        <button onclick="nextLevel()">Play Again</button>
     </div>
 </div>
 
 <footer>
-    <button onclick="resetPath()">Reset Path</button>
-    <button style="background: #475569; color: white;" onclick="nextLevel()">Skip</button>
+    <button style="background: white; color: var(--accent); border: 2px solid var(--accent); box-shadow: none;" onclick="resetPath()">Reset Path</button>
+    <button onclick="nextLevel()">Skip</button>
 </footer>
 
 <script>
-    // --- PUZZLE DATA ---
+    // --- PUZZLE DATA (Retained) ---
     const puzzles = [
         {
             size: 4,
             nums: { "0,0": 1, "0,3": 2, "3,0": 3 },
-            // walls: [row, col, type] type 0 = bottom wall, 1 = right wall
+            // walls: [row, col, type] type 0 = bottom, 1 = right
             walls: [[0, 0, 1], [0, 1, 1], [1, 2, 0], [2, 1, 1], [2, 0, 0]] 
         },
         {
@@ -184,14 +208,15 @@
     const wallLayer = document.getElementById('walls-layer');
     const root = document.querySelector(':root');
 
+    // Load custom font (Segoe UI replacement for iOS/Android if desired, using System fonts for maximum fluidness here)
+
     function initGame() {
         const p = puzzles[currentLvl];
         
-        // Dynamic Mobile Sizing
-        const availableWidth = Math.min(window.innerWidth - 40, 500);
+        // Dynamic Mobile Sizing - refined for orange border
+        const availableWidth = Math.min(window.innerWidth - 60, 500);
         const calcCellSize = Math.floor((availableWidth - (p.size * 6)) / p.size);
         root.style.setProperty('--cell-size', `${calcCellSize}px`);
-        root.style.setProperty('--gap', `6px`);
 
         grid.style.gridTemplateColumns = `repeat(${p.size}, var(--cell-size))`;
         grid.innerHTML = '';
@@ -207,7 +232,11 @@
                 cell.id = `c-${r}-${c}`;
                 cell.dataset.r = r;
                 cell.dataset.c = c;
-                if(p.nums[`${r},${c}`]) cell.textContent = p.nums[`${r},${c}`];
+                if(p.nums[`${r},${c}`]) {
+                    const val = p.nums[`${r},${c}`];
+                    cell.textContent = val;
+                    cell.dataset.val = val; // Store for styling
+                }
                 grid.appendChild(cell);
             }
         }
@@ -217,6 +246,7 @@
         updateTarget();
     }
 
+    // --- RENDER LOGIC (Center Math) ---
     function renderWalls(p) {
         const cellSize = parseInt(getComputedStyle(root).getPropertyValue('--cell-size'));
         const gap = parseInt(getComputedStyle(root).getPropertyValue('--gap'));
@@ -227,13 +257,13 @@
             const wall = document.createElement('div');
             wall.className = 'wall';
             
-            if(type === 0) { // Horizontal Wall (Bottom of cell)
-                wall.style.width = `${cellSize + gap}px`;
+            if(type === 0) { // Horizontal Wall
+                wall.style.width = `${cellSize + (gap * 1.5)}px`; // Slightly longer to smooth corners
                 wall.style.height = `var(--wall-thickness)`;
                 wall.style.left = `${c * step + cellSize/2}px`;
                 wall.style.top = `${(r + 1) * step - gap/2}px`;
-            } else { // Vertical Wall (Right of cell)
-                wall.style.height = `${cellSize + gap}px`;
+            } else { // Vertical Wall
+                wall.style.height = `${cellSize + (gap * 1.5)}px`;
                 wall.style.width = `var(--wall-thickness)`;
                 wall.style.top = `${r * step + cellSize/2}px`;
                 wall.style.left = `${(c + 1) * step - gap/2}px`;
@@ -242,10 +272,31 @@
         });
     }
 
+    function renderStroke() {
+        if(path.length === 0) {
+            stroke.setAttribute('points', '');
+            return;
+        }
+        const cellSize = parseInt(getComputedStyle(root).getPropertyValue('--cell-size'));
+        const gap = parseInt(getComputedStyle(root).getPropertyValue('--gap'));
+        const step = cellSize + gap;
+        const center = cellSize / 2;
+
+        const points = path.map(p => {
+            const x = p.c * step + center;
+            const y = p.r * step + center;
+            return `${x},${y}`;
+        }).join(' ');
+        stroke.setAttribute('points', points);
+    }
+
+    // --- INTERACTION LOGIC (Backtracking + Walls) ---
     function handleMove(e) {
         if(!isDragging) return;
         const clientX = e.touches ? e.touches[0].clientX : e.clientX;
         const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        
+        // Element from point is expensive but necessary for smooth dragging
         const el = document.elementFromPoint(clientX, clientY);
         
         if(el && el.classList.contains('cell')) {
@@ -265,7 +316,7 @@
         const last = path[path.length - 1];
         if(last.r === r && last.c === c) return;
 
-        // Fluid Backtracking Logic
+        // --- Fluid Backtracking ---
         if(path.length > 1) {
             const prev = path[path.length - 2];
             if(prev.r === r && prev.c === c) {
@@ -277,13 +328,13 @@
             }
         }
 
-        // Logic Constraints
+        // --- Game Logic Constraints ---
         const dr = r - last.r;
         const dc = c - last.c;
-        if(Math.abs(dr) + Math.abs(dc) !== 1) return; 
-        if(path.find(p => p.r === r && p.c === c)) return; 
+        if(Math.abs(dr) + Math.abs(dc) !== 1) return; // Adjacent only
+        if(path.find(p => p.r === r && p.c === c)) return; // No crossovers
 
-        // Wall Collision
+        // --- Wall Collision Check ---
         const p = puzzles[currentLvl];
         let blocked = false;
         p.walls.forEach(w => {
@@ -296,14 +347,14 @@
         });
         if(blocked) return;
 
-        // Winning Stroke Constraint: Max number MUST be the very last tile.
+        // --- Number Sequence & End Condition ---
         const cellVal = p.nums[`${r},${c}`];
         const nextReq = getNextRequiredNum();
         const maxVal = Math.max(...Object.values(p.nums));
 
         if(cellVal) {
             if(cellVal !== nextReq) return;
-            // Check if this is the highest number, if so, are there empty tiles left?
+            // Check win constraint: highest number MUST be the last empty tile filled.
             if(cellVal === maxVal && path.length < (p.size * p.size) - 1) return;
         }
 
@@ -328,38 +379,30 @@
         return maxFound + 1;
     }
 
-    function renderStroke() {
-        const cellSize = parseInt(getComputedStyle(root).getPropertyValue('--cell-size'));
-        const gap = parseInt(getComputedStyle(root).getPropertyValue('--gap'));
-        const step = cellSize + gap;
-        const center = cellSize / 2;
-
-        const points = path.map(p => {
-            const x = p.c * step + center;
-            const y = p.r * step + center;
-            return `${x},${y}`;
-        }).join(' ');
-        stroke.setAttribute('points', points);
-    }
-
     function checkWin() {
         const p = puzzles[currentLvl];
         const maxVal = Math.max(...Object.values(p.nums));
         const lastCell = path[path.length - 1];
         const lastVal = p.nums[`${lastCell.r},${lastCell.c}`];
 
+        // Must fill entire board AND end on highest number
         if(path.length === p.size * p.size && lastVal === maxVal) {
             clearInterval(timerInterval);
-            document.getElementById('final-time').textContent = `Finished in ${document.getElementById('timer').textContent}`;
-            document.getElementById('win-screen').style.display = 'flex';
+            document.getElementById('final-time').textContent = `ZIP Completed in ${document.getElementById('timer').textContent}`;
+            
+            // Short delay before showing win screen for fluidity
+            setTimeout(() => {
+                document.getElementById('win-screen').style.display = 'flex';
+            }, 300);
         }
     }
 
+    // --- UI & Input Helpers ---
     function updateTarget() {
         const next = getNextRequiredNum();
         const p = puzzles[currentLvl];
         const max = Math.max(...Object.values(p.nums));
-        document.getElementById('target').textContent = next > max ? "Fill All" : `Next: ${next}`;
+        document.getElementById('target').textContent = next > max ? "Finish board" : `Next: ${next}`;
     }
 
     function startTimer() {
@@ -380,14 +423,21 @@
     }
 
     function resetPath() {
-        initGame();
+        initGame(); // Rebuilds board to clear 'filled' states smoothly
     }
 
     function nextLevel() {
-        currentLvl = (currentLvl + 1) % puzzles.length;
+        // Randomly pick the next puzzle (but don't pick the same one twice)
+        let nextLvl;
+        do {
+            nextLvl = Math.floor(Math.random() * puzzles.length);
+        } while (nextLvl === currentLvl && puzzles.length > 1);
+        
+        currentLvl = nextLvl;
         initGame();
     }
 
+    // Passively handle starts, actively handle dragging to prevent scroll
     grid.addEventListener('mousedown', (e) => { isDragging = true; handleMove(e); });
     window.addEventListener('mouseup', () => isDragging = false);
     window.addEventListener('mousemove', handleMove);
@@ -397,7 +447,7 @@
         handleMove(e); 
     }, {passive:false});
     window.addEventListener('touchmove', (e) => {
-        if(isDragging) e.preventDefault();
+        if(isDragging) e.preventDefault(); // Lock scroll while drawing
         handleMove(e);
     }, {passive:false});
     window.addEventListener('touchend', () => isDragging = false);

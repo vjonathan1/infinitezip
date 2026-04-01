@@ -10,8 +10,7 @@
             --text-color: #ffffff;
             --grid-bg: #2a2a2a;
             --cell-bg: #3d3d3d;
-            --cell-hover: #4d4d4d;
-            --path-color: #00e5ff; /* Fun cyan */
+            --path-color: #00e5ff;
             --wall-color: #ff3d00;
             --number-color: #b2ff59;
             --ui-bg: #1e1e1e;
@@ -28,7 +27,7 @@
             align-items: center;
             height: 100vh;
             overflow: hidden;
-            touch-action: none; /* Prevent scrolling while playing */
+            touch-action: none; /* Crucial for preventing mobile scrolling while drawing */
         }
 
         header {
@@ -73,11 +72,12 @@
             padding: 10px;
             border-radius: 12px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            touch-action: none;
         }
 
         #grid {
             display: grid;
-            gap: 4px; /* Space between cells acts as gridlines */
+            gap: 4px; /* The gap acts as the space for our walls */
             position: relative;
             z-index: 2;
         }
@@ -93,38 +93,51 @@
             color: var(--number-color);
             user-select: none;
             position: relative;
-            transition: background-color 0.2s;
+            transition: background-color 0.1s;
         }
 
-        /* SVG Overlay for drawing the path */
+        .cell.visited {
+            background-color: #1c5259; /* Darker cyan to show filled state */
+        }
+
+        /* Perfectly aligned SVG Overlay */
         #path-svg {
             position: absolute;
             top: 10px;
             left: 10px;
             width: calc(100% - 20px);
             height: calc(100% - 20px);
-            pointer-events: none; /* Let clicks pass through to grid */
+            pointer-events: none;
             z-index: 3;
+            overflow: visible;
         }
 
         polyline {
             fill: none;
             stroke: var(--path-color);
-            stroke-width: 12;
+            stroke-width: 14;
             stroke-linecap: round;
             stroke-linejoin: round;
-            filter: drop-shadow(0 0 5px var(--path-color));
+            filter: drop-shadow(0 0 4px var(--path-color));
         }
 
-        /* Walls */
+        /* Perfectly aligned Walls Container */
+        #walls-container {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            width: calc(100% - 20px);
+            height: calc(100% - 20px);
+            pointer-events: none;
+            z-index: 4;
+        }
+
         .wall {
             position: absolute;
             background-color: var(--wall-color);
-            z-index: 4;
             border-radius: 4px;
+            box-shadow: 0 0 8px rgba(255, 61, 0, 0.6);
         }
-        .wall.horizontal { height: 6px; transform: translateY(-3px); }
-        .wall.vertical { width: 6px; transform: translateX(-3px); }
 
         .controls {
             padding: 20px;
@@ -146,17 +159,15 @@
             color: #000;
             cursor: pointer;
             text-transform: uppercase;
-            transition: transform 0.1s, opacity 0.2s;
+            transition: transform 0.1s;
         }
 
-        button:active {
-            transform: scale(0.95);
-        }
+        button:active { transform: scale(0.95); }
 
         #message-overlay {
             position: absolute;
             top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.85);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -166,10 +177,12 @@
             pointer-events: none;
             transition: opacity 0.3s;
         }
+
         #message-overlay.show {
             opacity: 1;
             pointer-events: auto;
         }
+
         #message-overlay h2 {
             color: var(--number-color);
             font-size: 40px;
@@ -190,8 +203,8 @@
     <div id="game-container">
         <div id="board-wrapper">
             <svg id="path-svg"><polyline id="path-line"></polyline></svg>
-            <div id="grid"></div>
             <div id="walls-container"></div>
+            <div id="grid"></div>
         </div>
         
         <div id="message-overlay">
@@ -207,30 +220,33 @@
 
     <script>
         // --- PUZZLE DATA STRUCTURE ---
-        // Coordinates are "row,col" starting from 0.
-        // Walls are "row1,col1-row2,col2"
+        // Guaranteed valid puzzles where the standard Hamiltonian path 
+        // ends on the maximum number.
         const puzzleBank = [
             {
+                // Snake pattern: Right, Down, Left, Down, Right
                 size: 4,
-                numbers: { "0,0": 1, "0,3": 2, "3,3": 3 },
-                walls: ["0,0-0,1", "1,2-2,2", "2,1-3,1"]
+                numbers: { "0,0": 1, "0,3": 2, "3,0": 3 },
+                walls: ["0,0-1,0", "1,3-2,3", "2,0-3,0"] 
             },
             {
+                // 5x5 Snake ending at 4,4
                 size: 5,
-                numbers: { "4,0": 1, "2,2": 2, "0,4": 3 },
-                walls: ["3,0-4,0", "1,1-1,2", "2,3-3,3", "4,2-4,3", "0,3-1,3"]
+                numbers: { "0,0": 1, "0,4": 2, "2,2": 3, "4,4": 4 },
+                walls: ["0,0-1,0", "1,4-2,4", "2,0-3,0", "3,4-4,4"]
             },
             {
+                // Spiral to center 4x4
                 size: 4,
-                numbers: { "1,1": 1, "3,0": 2, "0,2": 3 },
-                walls: ["1,0-1,1", "2,1-2,2", "0,2-0,3"]
+                numbers: { "0,0": 1, "3,3": 2, "1,1": 3 },
+                walls: ["0,0-1,0", "2,2-3,2", "1,1-1,2"]
             }
         ];
 
         // --- GAME STATE ---
         let currentPuzzle = null;
         let boardSize = 0;
-        let path = []; // Array of {r, c}
+        let path = []; 
         let isDrawing = false;
         let nextNumberRequired = 1;
         let maxNumber = 0;
@@ -239,7 +255,6 @@
         let timeElapsed = 0;
         let timerStarted = false;
 
-        // DOM Elements
         const gridEl = document.getElementById('grid');
         const wallsContainer = document.getElementById('walls-container');
         const pathLine = document.getElementById('path-line');
@@ -247,29 +262,19 @@
         const targetEl = document.getElementById('target-display');
         const messageOverlay = document.getElementById('message-overlay');
 
-        // Layout constants
-        const cellSize = 60; // Max cell size in px
+        const cellSize = 60; 
         const cellGap = 4;
 
         // --- INITIALIZATION ---
         function loadRandomPuzzle() {
             const randomIndex = Math.floor(Math.random() * puzzleBank.length);
-            currentPuzzle = JSON.parse(JSON.stringify(puzzleBank[randomIndex])); // Deep copy
+            currentPuzzle = JSON.parse(JSON.stringify(puzzleBank[randomIndex]));
             boardSize = currentPuzzle.size;
-            
-            // Find max number
             maxNumber = Math.max(...Object.values(currentPuzzle.numbers));
-            
-            resetGameUI();
-            buildBoard();
+            resetCurrentPuzzle();
         }
 
         function resetCurrentPuzzle() {
-            resetGameUI();
-            buildBoard();
-        }
-
-        function resetGameUI() {
             path = [];
             isDrawing = false;
             nextNumberRequired = 1;
@@ -281,13 +286,13 @@
             timerStarted = false;
             updateTimerDisplay();
             updateTargetDisplay();
+            buildBoard();
         }
 
         function buildBoard() {
             gridEl.innerHTML = '';
             wallsContainer.innerHTML = '';
             
-            // Calculate actual cell size based on screen width (mobile responsive)
             const availableWidth = window.innerWidth - 60; 
             const maxGridWidth = boardSize * cellSize + (boardSize - 1) * cellGap;
             const actualCellSize = maxGridWidth > availableWidth 
@@ -297,24 +302,24 @@
             gridEl.style.gridTemplateColumns = `repeat(${boardSize}, ${actualCellSize}px)`;
             gridEl.style.gridTemplateRows = `repeat(${boardSize}, ${actualCellSize}px)`;
 
-            // Build Cells
             for (let r = 0; r < boardSize; r++) {
                 for (let c = 0; c < boardSize; c++) {
                     const cell = document.createElement('div');
                     cell.className = 'cell';
                     cell.dataset.r = r;
                     cell.dataset.c = c;
+                    cell.id = `cell-${r}-${c}`;
                     
                     const coordStr = `${r},${c}`;
                     if (currentPuzzle.numbers[coordStr]) {
                         cell.innerText = currentPuzzle.numbers[coordStr];
                     }
-
                     gridEl.appendChild(cell);
                 }
             }
 
-            // Build Walls
+            const step = actualCellSize + cellGap;
+
             currentPuzzle.walls.forEach(wallStr => {
                 const [c1, c2] = wallStr.split('-');
                 const [r1, col1] = c1.split(',').map(Number);
@@ -323,27 +328,28 @@
                 const wallEl = document.createElement('div');
                 wallEl.className = 'wall';
 
-                // Calculate positions based on actual cell size + gaps
-                const step = actualCellSize + cellGap;
-
                 if (r1 === r2) {
-                    // Vertical wall (between columns)
+                    // Vertical wall
+                    const cLeft = Math.min(col1, col2);
                     wallEl.classList.add('vertical');
-                    wallEl.style.height = `${actualCellSize}px`;
-                    wallEl.style.left = `${Math.max(col1, col2) * step - cellGap}px`;
+                    wallEl.style.width = `${cellGap + 4}px`; // Slightly wider to cover corners
+                    wallEl.style.height = `${actualCellSize + cellGap}px`;
+                    wallEl.style.left = `${(cLeft + 1) * step - cellGap - 2}px`;
                     wallEl.style.top = `${r1 * step}px`;
                 } else {
-                    // Horizontal wall (between rows)
+                    // Horizontal wall
+                    const rTop = Math.min(r1, r2);
                     wallEl.classList.add('horizontal');
-                    wallEl.style.width = `${actualCellSize}px`;
-                    wallEl.style.top = `${Math.max(r1, r2) * step - cellGap}px`;
+                    wallEl.style.height = `${cellGap + 4}px`;
+                    wallEl.style.width = `${actualCellSize + cellGap}px`;
+                    wallEl.style.top = `${(rTop + 1) * step - cellGap - 2}px`;
                     wallEl.style.left = `${col1 * step}px`;
                 }
                 wallsContainer.appendChild(wallEl);
             });
         }
 
-        // --- TIMER LOGIC ---
+        // --- TIMER ---
         function startTimer() {
             if (timerStarted) return;
             timerStarted = true;
@@ -354,13 +360,8 @@
             }, 100);
         }
 
-        function stopTimer() {
-            clearInterval(timerInterval);
-        }
-
-        function updateTimerDisplay() {
-            timerEl.innerText = `Time: ${(timeElapsed / 1000).toFixed(1)}s`;
-        }
+        function stopTimer() { clearInterval(timerInterval); }
+        function updateTimerDisplay() { timerEl.innerText = `Time: ${(timeElapsed / 1000).toFixed(1)}s`; }
 
         function updateTargetDisplay() {
             if (nextNumberRequired > maxNumber) {
@@ -371,8 +372,6 @@
         }
 
         // --- INTERACTION LOGIC ---
-
-        // Get coordinates from a touch or mouse event
         function getCellFromEvent(e) {
             let clientX, clientY;
             if (e.touches && e.touches.length > 0) {
@@ -385,11 +384,7 @@
 
             const element = document.elementFromPoint(clientX, clientY);
             if (element && element.classList.contains('cell')) {
-                return {
-                    r: parseInt(element.dataset.r),
-                    c: parseInt(element.dataset.c),
-                    element: element
-                };
+                return { r: parseInt(element.dataset.r), c: parseInt(element.dataset.c) };
             }
             return null;
         }
@@ -399,36 +394,28 @@
             const cellInfo = getCellFromEvent(e);
             if (!cellInfo) return;
 
-            // Start a new path
-            resetGameUI(); 
+            resetCurrentPuzzle(); 
             isDrawing = true;
             startTimer();
-            attemptMove(cellInfo.r, cellInfo.c, cellInfo.element);
+            attemptMove(cellInfo.r, cellInfo.c);
         }
 
         function handleMove(e) {
             if (!isDrawing) return;
-            // Prevent default scrolling on mobile while drawing
             e.preventDefault(); 
             
             const cellInfo = getCellFromEvent(e);
             if (!cellInfo) return;
 
             const lastCell = path[path.length - 1];
-            
-            // Only attempt move if we moved to a new cell
             if (lastCell.r !== cellInfo.r || lastCell.c !== cellInfo.c) {
-                attemptMove(cellInfo.r, cellInfo.c, cellInfo.element);
+                attemptMove(cellInfo.r, cellInfo.c);
             }
         }
 
-        function handleEnd(e) {
-            isDrawing = false;
-        }
+        function handleEnd() { isDrawing = false; }
 
-        // Core path logic
-        function attemptMove(r, c, element) {
-            // 1. Is it the first move?
+        function attemptMove(r, c) {
             if (path.length === 0) {
                 addCellToPath(r, c);
                 return;
@@ -436,49 +423,74 @@
 
             const lastCell = path[path.length - 1];
 
-            // 2. Is it adjacent? (No diagonals)
+            // 1. Backtracking (Undo)
+            if (path.length > 1) {
+                const prevCell = path[path.length - 2];
+                if (prevCell.r === r && prevCell.c === c) {
+                    const popped = path.pop();
+                    const poppedElement = document.getElementById(`cell-${popped.r}-${popped.c}`);
+                    if(poppedElement) poppedElement.classList.remove('visited');
+
+                    // If we backtracked over a required number, revert the target requirement
+                    const poppedNum = currentPuzzle.numbers[`${popped.r},${popped.c}`];
+                    if (poppedNum && poppedNum === nextNumberRequired - 1) {
+                        nextNumberRequired--;
+                        updateTargetDisplay();
+                    }
+                    drawPath();
+                    return;
+                }
+            }
+
+            // 2. Adjacency check
             const isAdjacent = (Math.abs(lastCell.r - r) === 1 && lastCell.c === c) || 
                                (Math.abs(lastCell.c - c) === 1 && lastCell.r === r);
             if (!isAdjacent) return;
 
-            // 3. Has it been visited? (No crossovers)
+            // 3. Prevent crossover
             if (path.some(p => p.r === r && p.c === c)) return;
 
-            // 4. Is there a wall blocking?
+            // 4. Wall collision detection
             const moveStr1 = `${lastCell.r},${lastCell.c}-${r},${c}`;
             const moveStr2 = `${r},${c}-${lastCell.r},${lastCell.c}`;
             if (currentPuzzle.walls.includes(moveStr1) || currentPuzzle.walls.includes(moveStr2)) {
                 return;
             }
 
-            // 5. Number Validation
+            // 5. Strict Number Validation
             const cellNum = currentPuzzle.numbers[`${r},${c}`];
             if (cellNum) {
-                if (cellNum !== nextNumberRequired) {
-                    // Hit the wrong number!
+                // Must hit in exact numerical order
+                if (cellNum !== nextNumberRequired) return; 
+
+                // If it is the final max number, it MUST be the final tile on the board to win
+                const totalCells = boardSize * boardSize;
+                if (cellNum === maxNumber && path.length !== totalCells - 1) {
                     return; 
                 }
-                // Hit the correct number
+
                 nextNumberRequired++;
                 updateTargetDisplay();
             }
 
-            // Move is valid!
             addCellToPath(r, c);
-            
-            // Check Win Condition
             checkWin();
         }
 
         function addCellToPath(r, c) {
             path.push({r, c});
+            const cellEl = document.getElementById(`cell-${r}-${c}`);
+            if(cellEl) cellEl.classList.add('visited');
             drawPath();
         }
 
         function drawPath() {
-            // Get cells to calculate center points
-            const cells = document.querySelectorAll('.cell');
-            const actualCellSize = cells[0].offsetWidth;
+            if(path.length === 0) return;
+            
+            const cellEl = document.querySelector('.cell');
+            if(!cellEl) return;
+
+            const actualCellSize = cellEl.offsetWidth;
             const step = actualCellSize + cellGap;
             const offset = actualCellSize / 2;
 
@@ -498,23 +510,20 @@
                 isDrawing = false;
                 setTimeout(() => {
                     messageOverlay.classList.add('show');
-                }, 300);
+                }, 400);
             }
         }
 
         // --- EVENT LISTENERS ---
-        // Mouse Events
         gridEl.addEventListener('mousedown', handleStart);
         document.addEventListener('mousemove', handleMove);
         document.addEventListener('mouseup', handleEnd);
 
-        // Touch Events (Passive false needed for preventDefault)
         gridEl.addEventListener('touchstart', handleStart, {passive: false});
         document.addEventListener('touchmove', handleMove, {passive: false});
         document.addEventListener('touchend', handleEnd);
 
-        // --- INIT ---
-        window.addEventListener('resize', buildBoard); // Rebuild on resize to fix SVG scale
+        window.addEventListener('resize', buildBoard); 
         loadRandomPuzzle();
 
     </script>
